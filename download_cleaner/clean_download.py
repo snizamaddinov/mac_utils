@@ -2,6 +2,12 @@ import os
 from pathlib import Path
 import re
 import time
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--skip_date_check', default=False, dest='skip_date_check')
+args = parser.parse_args()
+SKIP_DATE_CHECK = bool(int(args.skip_date_check))
 
 CURRENT_TIME = time.time() 
 TIME_DIFFERENCE = 60 * 60 * 24 - 60 # 24 hours - 1 minute (to avoid processing files again.)
@@ -16,7 +22,7 @@ extension_mapping = {
     'codes': ['.html', '.xml', '.c', '.py', '.sh', '.js', '.ipynb', '.json', '.css', '.cpp', '.java', '.php'],
     'media': ['.ai', '.HEIC', '.bmp', '.gif', '.ico', '.jpeg', '.jpg', '.png', '.ps', '.psd', '.svg', '.h264', '.m4v', '.mkv', '.mov', '.mp4', '.mpg', '.mpeg', '.rm', '.swf', '.vob', '.wmv'],
     'programs': ['.dmg', '.apk', '.app'],
-    'compressed': ['.rar', '.arj', '.deb', '.pkg', '.7z', '.rpm'],
+    'compressed': ['.rar', '.arj', '.deb', '.pkg', '.7z', '.rpm', '.tar.gz', '.z', '.zip', '.gz', '.bz2', '.xz', '.tar'],
 }
 
 extension_to_type = {ext: ftype for (ftype, extlist) in extension_mapping.items() for ext in extlist}
@@ -35,6 +41,9 @@ def should_process_file(file):
         if ignored_file in file.name or ignored_file in file.stem or file.name.startswith('.') or file.stem in ignored_file:
             return False
 
+    if SKIP_DATE_CHECK:
+        return True
+    
     last_modified_time = file.stat().st_mtime
     time_difference = CURRENT_TIME - last_modified_time
     return time_difference < TIME_DIFFERENCE
