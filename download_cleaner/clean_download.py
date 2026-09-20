@@ -1,8 +1,13 @@
 import os
+import stat
 from pathlib import Path
 import re
 import time
 import argparse
+
+# UF_HIDDEN flag hides an item in Finder without renaming it (macOS `chflags hidden`).
+# Original file names are preserved exactly on disk; only Finder visibility changes.
+UF_HIDDEN = getattr(stat, 'UF_HIDDEN', 0x00008000)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--skip_date_check', default=False, dest='skip_date_check')
@@ -54,6 +59,28 @@ def create_folders():
         if not folder_path.exists():
             folder_path.mkdir()
 
+def hide_path(path):
+    """Set the macOS UF_HIDDEN flag on a path without renaming it.
+    The original name is kept exactly as-is; Finder simply won't show it."""
+    try:
+        current_flags = os.stat(path).st_flags
+        if not (current_flags & UF_HIDDEN):
+            os.chflags(path, current_flags | UF_HIDDEN)
+    except (OSError, AttributeError) as e:
+        # AttributeError: platform without chflags/st_flags (non-macOS).
+        # OSError: permission/path issues -- skip rather than break the cron run.
+        print("Could not hide:", path, "->", e)
+
+def hide_media_contents():
+    """Hide everything inside ~/Downloads/media (recursively) so the folder's
+    contents are never visible in Finder. File names are left unchanged."""
+    media_path = downloads_path / 'media'
+    if not media_path.exists():
+        return
+    for root, dirs, files in os.walk(media_path):
+        for name in list(dirs) + files:
+            hide_path(os.path.join(root, name))
+
 home_dir = Path.home()
 downloads_path = home_dir / 'Downloads'
 contents = downloads_path.iterdir()
@@ -79,3 +106,7 @@ for f in contents:
             print("Moving file: ", f)
             print("Will be moved to: ", os.path.join(home_dir, destination, slug_name))
             os.rename(f, os.path.join(downloads_path, destination, slug_name))
+
+# Always ensure the media folder's contents stay hidden in Finder, even for
+# files that were already moved on previous runs.
+hide_media_contents()
